@@ -24,6 +24,7 @@
 #include "savepos.h"
 #include "voidmap.h"
 #include "ragdoll.h"
+#include "remote.h"
 #include "eventskip.h"
 #include "link.h"
 #include "menu.h"
@@ -3517,14 +3518,29 @@ static void build_menu_settings(void)
   menu_add_return(&m_menu_settings);
 }
 
+static bool get_remote(menu_item_t *it)
+{
+  return remote_enabled;
+}
+
+static void set_remote(menu_item_t *it, bool on)
+{
+  remote_enabled = on;
+}
+
 static void build_settings(void)
 {
-  menu_init(&m_settings, "settings", 7);
+  menu_init(&m_settings, "settings", 8);
   menu_add_submenu(&m_settings, "menu settings", &m_menu_settings);
   menu_add_submenu(&m_settings, "input display", &m_input_display);
   menu_add_submenu(&m_settings, "levitate", &m_levitate);
   menu_add_submenu(&m_settings, "frame advance", &m_frame_advance);
   menu_add_submenu(&m_settings, "rebind commands", &m_commands);
+  menu_item_t *remote = menu_add_check(&m_settings, "remote control", get_remote, set_remote, 0);
+  if (remote) {
+    remote->hint = "run the scripts a tool writes to sloperinaGZ/remote/cmd.txt on the SD card (tools/remote.py)";
+    remote->log_label = "remote control:";
+  }
   menu_add_return(&m_settings);
 
   build_menu_settings();

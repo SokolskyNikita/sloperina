@@ -41,6 +41,11 @@ extern bool input_force_active;
 extern uint32_t input_force_buttons;
 extern bool input_force_sticks[2];       /* left, right: use the values below */
 extern int32_t input_force_stick[4];     /* lx, ly, rx, ry */
+/* the same, from a script (remote.h): its own, as frame advance clears the ones above every frame */
+extern bool input_remote_active;
+extern uint32_t input_remote_buttons;
+extern bool input_remote_sticks[2];
+extern int32_t input_remote_stick[4];
 /* Point main's nn::hid imports at our wrappers (module init); returns 0 or a message. */
 const char *input_hook_game(uintptr_t main_base);
 

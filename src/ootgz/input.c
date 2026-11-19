@@ -173,12 +173,16 @@ bool input_force_active;
 uint32_t input_force_buttons;
 bool input_force_sticks[2];
 int32_t input_force_stick[4];
+bool input_remote_active;
+uint32_t input_remote_buttons;
+bool input_remote_sticks[2];
+int32_t input_remote_stick[4];
 
 /* Edit the states the game just read: blank them while the menu is open, otherwise add frame
  * advance's buffered input and take out the buttons the game mustn't see. */
 static void filter_game_states(void *states, int count)
 {
-  if (!input_block_game && !input_hold_game && !input_hide_from_game && !input_force_active)
+  if (!input_block_game && !input_hold_game && !input_hide_from_game && !input_force_active && !input_remote_active)
     return;
   for (int i = 0; i < count; i++) {
     npad_state_t *state = (npad_state_t *)((char *)states + i * NPAD_STATE_SIZE);
@@ -199,6 +203,17 @@ static void filter_game_states(void *states, int count)
       }
     }
     state->buttons &= ~(uint64_t)input_hide_from_game;
+    if (input_remote_active) { /* after the hiding: a script's L isn't frame advance's */
+      state->buttons |= input_remote_buttons;
+      if (input_remote_sticks[0]) {
+        state->lx = input_remote_stick[0];
+        state->ly = input_remote_stick[1];
+      }
+      if (input_remote_sticks[1]) {
+        state->rx = input_remote_stick[2];
+        state->ry = input_remote_stick[3];
+      }
+    }
   }
 }
 

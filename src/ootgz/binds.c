@@ -199,6 +199,9 @@ static uint32_t held_now;
 
 void binds_set_enabled(command_t cmd, bool enabled) { disabled[cmd] = !enabled; }
 
+/* frames a command given by binds_fire still reads as held: this one, and those asked for */
+static uint16_t fired[CMD_COUNT];
+
 void binds_update(uint32_t held, uint32_t pressed, uint32_t released)
 {
   held_now = held;
@@ -271,18 +274,35 @@ void binds_update(uint32_t held, uint32_t pressed, uint32_t released)
     pressed_now[i] = active_frames[i] == 1;
     repeat_now[i] = pressed_now[i] || (active_frames[i] > REPEAT_FIRST && (active_frames[i] - REPEAT_FIRST) %
                                                                               REPEAT_EVERY == 1);
+      if (fired[i])
+      fired[i]--;
   }
+}
+
+void binds_fire(command_t cmd, int hold_frames)
+{
+  if ((int)cmd < 0 || cmd >= CMD_COUNT)
+    return;
+  if (hold_frames < 0)
+    hold_frames = 0;
+  if (hold_frames > UINT16_MAX - 1)
+    hold_frames = UINT16_MAX - 1;
+  pressed_now[cmd] = true;
+  repeat_now[cmd] = true;
+  fired[cmd] = (uint16_t)(1 + hold_frames);
 }
 
 bool cmd_pressed(command_t cmd) { return pressed_now[cmd]; }
 bool cmd_repeat(command_t cmd) { return repeat_now[cmd]; }
-bool cmd_active(command_t cmd) { return active_frames[cmd] > 0; }
+bool cmd_active(command_t cmd) { return active_frames[cmd] > 0 || fired[cmd]; }
 bool cmd_cancelled(command_t cmd) { return cancelled_now[cmd]; }
 uint32_t cmd_mask(command_t cmd) { return bind_mask(binds[cmd]); }
 
 bool cmd_held(command_t cmd)
 {
   uint32_t mask = cmd_mask(cmd);
+  if (fired[cmd])
+    return true;
   return binds_enabled && !disabled[cmd] && mask && (held_now & mask) == mask;
 }
 

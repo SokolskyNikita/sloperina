@@ -68,6 +68,10 @@ extern bool binds_enabled; /* off while a bind is recorded: no command happens *
  * makes another give way (L + L3 doesn't stop L3 toggling levitate while frame advance is off) */
 void binds_set_enabled(command_t cmd, bool enabled);
 
+/* A command given without its buttons (remote.h): this frame it reads as just pressed, and for `hold_frames` more
+ * as held (levitate's up and down). Called after binds_update, before the frame's features ask. */
+void binds_fire(command_t cmd, int hold_frames);
+
 bool cmd_pressed(command_t cmd);   /* became active this frame */
 bool cmd_repeat(command_t cmd);    /* became active, or held long enough to repeat (menu navigation) */
 bool cmd_active(command_t cmd);    /* active: all its buttons held, in order, nothing else pressed since */

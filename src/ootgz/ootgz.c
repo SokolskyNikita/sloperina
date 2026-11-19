@@ -42,6 +42,7 @@
 #include "pouch.h"
 #include "savepos.h"
 #include "ragdoll.h"
+#include "remote.h"
 #include "eventskip.h"
 #include "position.h"
 #include "lock.h"
@@ -106,6 +107,7 @@ static bool hud_hidden(void)
 #define FA_POLL_NS (16 * 1000 * 1000)
 
 static bool fa_paused;
+static bool fa_by_remote;       /* held by a script (remote.h's pause and step): also with frame advance off */
 static bool fa_button_down;     /* the button went down and hasn't been let go yet */
 static bool fa_not_a_tap;       /* something else was pressed while it was down */
 static uint64_t fa_button_down_at;
@@ -270,11 +272,23 @@ static void fa_hold_game(void)
    * that can't be done (no memory for the picture), the last frame let through stays on screen as it was,
    * with the pause icon (set before it was presented). */
   gfx_pause_icon = pause_display ? 1 : 0;
+  if (remote_take_step()) /* a script's step of several frames: the next goes straight through */
+    return;
   for (;;) {
     sys_sleep_ns(FA_POLL_NS);
     sys_frame();
     command_context();
     input_update();
+    /* a script's lines (remote.h) run while the game is held too: its step lets a frame through, with its own
+     * input; its run, or remote control turned off while it holds the game, lets the game go on */
+    remote_frame(true);
+    if (remote_take_run() || (fa_by_remote && !frame_advance && !remote_enabled)) {
+      fa_paused = false;
+      gfx_pause_icon = 0;
+      break;
+    }
+    if (remote_take_step())
+      break;
     /* The run command always runs again, even with the menu open (it may share a button with it), checked
      * before the menu gets it. Without our presents a menu opened here can't be seen: it's closed. */
     if (cmd_pressed(CMD_RUN)) {
@@ -324,7 +338,16 @@ static void fa_hold_game(void)
 
 static void fa_frame(void)
 {
-  if (!frame_advance) {
+  if (remote_take_pause() && !fa_paused) { /* a script's pause: as a tap of the button, below */
+    fa_paused = true;
+    fa_by_remote = true;
+    gfx_pause_icon = pause_display ? 1 : 0;
+    nvn_freeze(true);
+    return;
+  }
+  if (!fa_paused)
+    fa_by_remote = false;
+  if (!frame_advance && !fa_by_remote) {
     fa_paused = false;
     fa_button_down = false;
     gfx_pause_icon = 0;
@@ -340,11 +363,11 @@ static void fa_frame(void)
     fa_menu_closed_at = sys_tick();
     return;
   }
-  if (bind_length(binds[CMD_ADVANCE]) == 1) /* a combo's buttons stay the game's */
+  if (frame_advance && bind_length(binds[CMD_ADVANCE]) == 1) /* a combo's buttons stay the game's */
     input_hide_from_game |= cmd_mask(CMD_ADVANCE);
   if (!fa_paused)
     input_force_active = false;
-  if (!fa_paused && fa_read_button() == FA_TAP) {
+  if (!fa_paused && frame_advance && fa_read_button() == FA_TAP) {
     fa_paused = true;
     char advance[48], run[48], notice[128];
     bind_name(binds[CMD_ADVANCE], advance, sizeof(advance));
@@ -389,6 +412,7 @@ static void frame(void)
   flaglog_frame(false); /* what the game changed since the last frame, before this module changes anything */
   command_context();
   input_update();
+  remote_frame(false); /* a script's lines (remote.h), as if pressed or chosen now */
 
   fa_menu_was_open = menu_current != 0; /* an L that closes the menu isn't frame advance's */
   menu_controls();

@@ -448,7 +448,7 @@ second. It starts fresh each time the game starts. Send it along when you report
 ### 2.11 Settings
 
 The settings menu lists its menus: **menu settings**, **input display**, **levitate**, **frame advance** and **rebind
-commands**.
+commands**, and has the **remote control** switch ([2.11.5](#2115-remote-control)).
 
 **menu settings**: **language** ([6](#6-languages)), **size** (auto, small 2x, medium 2.5x, large 3x: the menu, watches
 and log), **background opacity** (0 to 100%, 100% at first; below 100% the game shows through, slightly behind) and
@@ -545,6 +545,47 @@ In the settings file each is `bind_<name>=<buttons>`, e.g. `bind_menu=R + rs-dow
 button names: `A B X Y L R ZL ZR L3 R3 plus minus d-up d-down d-left d-right ls-up ls-down ls-left ls-right rs-up
 rs-down rs-left rs-right SL SR`.
 
+#### 2.11.5 Remote control
+
+**remote control** (off at first) lets a script or a tool on the PC use sloperinaGZ without the controller: it runs the
+lines of a text file as if each were pressed or chosen in the menu. Nothing happens while it's off.
+
+With it on, sloperinaGZ looks ten times a second for `sloperinaGZ/remote/cmd.txt` on the SD card (on an emulator, its
+virtual SD card: a folder on the PC). It reads the file, deletes it (so the next can be written) and runs its lines in
+order on the game's thread. What each line did is added to `sloperinaGZ/remote/out.txt` and to the log.
+`python3 tools/remote.py "fire savepos" "wait 30" "fire loadpos"` writes the file and prints the answers; write
+`cmd.txt` under another name and rename it, so it's never read half written.
+
+| Line | What it does |
+|---|---|
+| `fire <command> [frames]` | A command of **rebind commands**, by its name in the settings file (`savepos`, `loadpos`, `ragdoll`, `levitate`, `timer`...), as if its buttons were pressed now; held for that many frames more (`rise`, `sink`, `hover`). |
+| `do <menu path>` | Chooses a menu item: an action runs, a checkbox flips, an option moves to its next choice. |
+| `set <menu path> = <value>` | Sets a checkbox (`on` / `off`), an option (a choice's text or number) or a number. |
+| `get <menu path>` | The item's value. |
+| `list [<menu path>]` | A menu's items: number, kind, name and value. Without a path, the top menu. |
+| `wait <frames>` | The next line runs that many frames later. |
+| `pause` | Holds the game as frame advance does (frame advance needn't be on). |
+| `step [frames]` | Lets that many frames through (one unless said), then holds the game again. Pauses first if the game was running. |
+| `run` | Lets the game run again. |
+| `input <buttons> [ls <x> <y>] [rs <x> <y>] [for <frames>]` | Buttons and sticks for the game, on top of the controller's: names with `+` between (`A+ZL`, at most four), a number (`0x41`) or `-` for none; a stick is -32767 to 32767 each way. For one frame unless said; `for 0` lasts until the next `input`; `input off` ends it. The menu's shortcuts don't see these buttons: use `fire` for those. |
+| `status` | The game's frame counter, the map, where Link is, whether the game is held and the warp's state. |
+| `echo <text>` | Puts the text in `out.txt` (a marker). |
+| `id <word>` | The word that starts this script's lines in `out.txt` (otherwise `-`), to tell them from another's. |
+
+A **menu path** is the names from the top menu down with `/` between them, in any case: `cheats/infinite magic`,
+`scene/end cutscene`, `settings/frame advance/enabled`. `name#2` is the second item of that name in its menu and `@7`
+the menu's item number 7 (as `list` numbers them), for lines with no name. The names are the English ones whatever the
+language. An item that opens something to type or pick in (a keyboard, a list) needs the menu and isn't run.
+
+Each line of `out.txt` is `<frame> <id> <line number> ok <what happened>` or `... err <why not>`, with the game's
+frame counter when it ran, and `<frame> <id> end` closes a script. A script waits where a line does (`wait`, `step`,
+`pause`, `run`), so "the same input on the same frame after loading a position" is a script, not a matter of timing
+on the PC: `fire loadpos`, `wait 60`, `pause`, `input A for 1`, `step 30`, `status`. While the game is held `wait`
+can't pass (no frames do: use `step`), and a `fire` takes effect on the first frame let through. A script that ends
+with the game held leaves it held for the next one; `run`, or turning **remote control** off, lets it go on.
+
+At most 16,383 bytes a script, and 64 of its lines a frame. Blank lines and lines that start with `#` are skipped.
+
 ### 2.12 About
 
 The name and version, the build date ("Build Date: ..."), and the website.
@@ -587,7 +628,7 @@ game's pause screen closed):
 Settings are saved on the SD card in `sloperinaGZ/settings.ini` (on an emulator, its virtual SD card) a couple of
 seconds after you close the menu. It's plain `key=value` text: cheats, watches (which, in what order, their types,
 names and whether shown), the watches box, menu size, background, hiding in game menus, language, input display,
-levitate, frame advance, save position, flag logging, void out and the commands' binds. Delete it to go back to the defaults. Your game saves are never touched.
+levitate, frame advance, save position, flag logging, void out, remote control and the commands' binds. Delete it to go back to the defaults. Your game saves are never touched.
 
 The game's pictures sloperinaGZ uses (the controllers in the input display, the menus' parts, the item icons)
 are kept in `sloperinaGZ/cache/` once they're made from your copy of the game, so later starts don't have to make

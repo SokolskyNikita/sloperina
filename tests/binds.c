@@ -43,6 +43,30 @@ static void expands(const char *in, const char *want)
   char buf[256];
   const char *out = binds_expand(in, buf, sizeof(buf));
   if (strcmp(out, want)) {
+  /* binds_fire (remote.h): pressed this frame without its buttons, held for the frames asked, even while the
+   * command doesn't apply; the controller's own press of it still works meanwhile */
+  binds_reset();
+  frame(0);
+  binds_fire(CMD_SAVEPOS, 0);
+  assert(cmd_pressed(CMD_SAVEPOS) && cmd_repeat(CMD_SAVEPOS) && cmd_active(CMD_SAVEPOS));
+  frame(0);
+  assert(!cmd_pressed(CMD_SAVEPOS) && !cmd_active(CMD_SAVEPOS) && !cmd_held(CMD_SAVEPOS));
+  binds_set_enabled(CMD_RISE, false);
+  binds_fire(CMD_RISE, 2);
+  assert(cmd_pressed(CMD_RISE) && cmd_held(CMD_RISE));
+  frame(0);
+  assert(!cmd_pressed(CMD_RISE) && cmd_held(CMD_RISE) && cmd_active(CMD_RISE));
+  frame(0);
+  assert(cmd_held(CMD_RISE));
+  frame(0);
+  assert(!cmd_held(CMD_RISE) && !cmd_active(CMD_RISE));
+  binds_set_enabled(CMD_RISE, true);
+  binds_fire(CMD_COUNT, 0); /* not a command: nothing */
+  frame(BTN_R);
+  frame(BTN_R | BTN_DUP);
+  assert(cmd_pressed(CMD_SAVEPOS));
+  frame(0);
+
     printf("expand \"%s\": \"%s\", wanted \"%s\"\n", in, out, want);
     assert(0);
   }
