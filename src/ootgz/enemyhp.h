@@ -22,6 +22,13 @@ typedef struct {
 /* actors.c: the enemies in the scene, up to max */
 int enemies_read(enemy_t *out, int max);
 
+/* actors.c: the running actors within `radius` metres of Link (not Link), nearest first, up to max; game thread */
+typedef struct {
+  const char *name; /* the game's own, e.g. "Enemy_Wolfos" */
+  float distance;
+} actor_near_t;
+int actors_near(float radius, actor_near_t *out, int max);
+
 /* the colours of the rectangles (nvn.c) */
 enum { EH_BACK, EH_FILL, EH_LOW, EH_TEXT, EH_NCOLORS };
 

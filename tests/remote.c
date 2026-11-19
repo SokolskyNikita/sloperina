@@ -26,6 +26,31 @@ bool gd_ready(void) { return true; }
 const char *gd_get_str(uint32_t hash) { return "KokiriForest"; }
 bool gd_game_paused(bool *is_pause, int32_t *pause_requests) { return false; }
 const char *warp_state(void) { return ""; }
+/* Link's actor and the player object, as status and trace read them: his velocity at +0x388, the item on ZR and
+ * in hand at the player object's +0x7D0 and +0x7D8 (the jump height's address is that object + 0x18E8) */
+static _Alignas(8) uint8_t actor_mem[0x400], player_mem[0x1900];
+static float facing_x = 1, facing_z = 0;
+uintptr_t link_actor(void) { return (uintptr_t)actor_mem; }
+bool sys_mapped(uintptr_t addr, size_t size, uint32_t perm) { return true; }
+bool link_facing(double *fx, double *fz)
+{
+  *fx = facing_x, *fz = facing_z;
+  return true;
+}
+bool js_height_address(uintptr_t *addr)
+{
+  *addr = (uintptr_t)player_mem + 0x18E8;
+  return true;
+}
+static actor_near_t actors_there[3] = { { "Npc_Kokiri", 2.5f }, { "Obj_Sign", 4.25f }, { "Npc_Far", 30 } };
+int actors_near(float radius, actor_near_t *out, int max)
+{
+  int n = 0;
+  for (int i = 0; i < 3 && n < max; i++)
+    if (actors_there[i].distance <= radius)
+      out[n++] = actors_there[i];
+  return n;
+}
 
 bool input_remote_active;
 uint32_t input_remote_buttons;
@@ -278,7 +303,7 @@ int main(void)
   remote_frame(true);
   out_has(" 5 ok stepped\n");
   out_has(" 6 ok frame=");
-  out_has(" map=KokiriForest link=yes x=1.500 y=2.000 z=-3.000 held=1 menu=0 game_paused=0 warp=-\n");
+  out_has(" map=KokiriForest link=yes x=1.500 y=2.000 z=-3.000 held=1 menu=0 game_paused=0 vy=0.000 hs=0.000 ");
   assert(remote_take_run() && !remote_take_run() && running);
   remote_frame(true);
   assert(!strstr(out_file, "after")); /* run waits until the game runs */
@@ -300,6 +325,41 @@ int main(void)
   assert(input_remote_active && input_remote_buttons == 3); /* for 0: until the next input */
   run_script("input off\n");
   assert(!input_remote_active);
+
+  /* status has how Link moves and what he holds; trace gives a line a frame, without holding the script up;
+   * actors lists who is near */
+  float velocity[3] = { 3, 6.125f, -4 };
+  int32_t zr_item = 0, held = -1;
+  memcpy(actor_mem + 0x388, velocity, sizeof(velocity));
+  memcpy(player_mem + 0x7D0, &zr_item, 4);
+  memcpy(player_mem + 0x7D8, &held, 4);
+  run_script("status\n");
+  out_has(" vy=6.125 hs=5.000 facing=90.0 hand=-1 zr=0 warp=-\n");
+  out_size = 0;
+  send("trace 3\necho now\nwait 5\necho later\n");
+  for (int i = 0; i < POLL_CALLS; i++)
+    frame();
+  out_has(" 1 ok trace 3\n");
+  out_has(" 2 ok now\n");
+  assert(!strstr(out_file, " t y=")); /* from the next frame on */
+  held = 3;
+  memcpy(player_mem + 0x7D8, &held, 4);
+  for (int i = 0; i < 6; i++)
+    frame();
+  out_has(" 4 ok later\n");
+  int traced = 0;
+  for (const char *p = out_file; (p = strstr(p, " t y=2.000 vy=6.125 hs=5.000 x=1.500 z=-3.000 hand=3 zr=0 paused=0\n")); p++)
+    traced++;
+  assert(traced == 3);
+  run_script("trace 100\ntrace off\nwait 2\ntrace x\n");
+  assert(!strstr(out_file, " t y="));
+  out_has(" 4 err trace: a number of frames, or off\n");
+  run_script("actors\nactors 3\nactors far\n");
+  out_has(" 1 | 2.50 Npc_Kokiri\n");
+  out_has(" 1 | 4.25 Obj_Sign\n");
+  out_has(" 1 ok 2 actors within 6 m\n");
+  out_has(" 2 ok 1 actors within 3 m\n");
+  out_has(" 3 err actors: a distance in metres\n");
 
   /* a file too long isn't run; one that can't be deleted isn't run, and is said once */
   out_size = 0;

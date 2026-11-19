@@ -6,6 +6,7 @@
 #include <stdint.h>
 
 #include "binds.h"
+#include "enemyhp.h"
 #include "gamedata.h"
 #include "input.h"
 #include "link.h"
@@ -15,6 +16,7 @@
 #include "settings.h"
 #include "sys.h"
 #include "warp.h"
+#include "watches.h"
 
 #define REMOTE_DIR SD_DIR "/remote"
 #define CMD_FILE REMOTE_DIR "/cmd.txt"
@@ -41,6 +43,8 @@ static bool pause_waiting;          /* ... and until it holds the game */
 static int steps_left;              /* step: frames still to let through */
 static bool stepping;               /* ... and until the game is held again after them */
 static bool run_wanted, run_waiting; /* run: the same two */
+
+static int trace_left;               /* trace: frames it still reports */
 
 static uint16_t fire_pending[CMD_COUNT]; /* fire while the game is held: given on the next frame (1 + frames held) */
 static int input_frames;                 /* frames the script's input still lasts (0: until changed) */
@@ -525,16 +529,94 @@ static const char *run_input(char *args)
   return 0;
 }
 
+float hypotf(float x, float y); /* from sdk */
+
+/* Link's own state, for status and trace: his velocity (the actor's, units a second), what he holds and what's
+ * on ZR (the player object's: -1 nothing, 0 the Deku Stick, 3 the Boomerang...; 1.1.1's offsets, from the jump
+ * height's object), which way he faces (degrees, 0 = +z). false, and zeros, where it can't be read. */
+#define LINK_VELOCITY 0x388
+#define PLAYER_JS_HEIGHT 0x18E8 /* watches.c: js_height_address gives the player object + this */
+#define PLAYER_ZR_ITEM 0x7D0
+#define PLAYER_HELD_KIND 0x7D8
+
+typedef struct {
+  float vx, vy, vz, facing;
+  int32_t hand, zr;
+} link_state_t;
+
+float atan2f(float y, float x); /* from sdk */
+
+static bool link_state(link_state_t *s)
+{
+  *s = (link_state_t){ 0, 0, 0, 0, -2, -2 };
+  uintptr_t link = link_actor();
+  if (!link || !sys_mapped(link + LINK_VELOCITY, 12, SYS_PERM_R))
+    return false;
+  const float *v = (const float *)(link + LINK_VELOCITY);
+  s->vx = v[0];
+  s->vy = v[1];
+  s->vz = v[2];
+  double fx, fz;
+  if (link_facing(&fx, &fz)) {
+    s->facing = atan2f((float)fx, (float)fz) * (180.0f / 3.14159265f);
+    if (s->facing < 0)
+      s->facing += 360.0f;
+  }
+  uintptr_t js;
+  if (js_height_address(&js) && sys_mapped(js - PLAYER_JS_HEIGHT + PLAYER_ZR_ITEM, 16, SYS_PERM_R)) {
+    uintptr_t player = js - PLAYER_JS_HEIGHT;
+    s->zr = *(volatile int32_t *)(player + PLAYER_ZR_ITEM);
+    s->hand = *(volatile int32_t *)(player + PLAYER_HELD_KIND);
+  }
+  return true;
+}
+
+/* one frame of a trace: "<line> t y=... vy=... hs=... x=... z=... hand=... zr=... paused=..." */
+static void trace_line(void)
+{
+  vec3f_t pos = { 0, 0, 0 };
+  link_state_t s;
+  link_drawn_pos(&pos);
+  link_state(&s);
+  char text[200];
+  snprintf(text, sizeof(text), "%d t y=%.3f vy=%.3f hs=%.3f x=%.3f z=%.3f hand=%d zr=%d paused=%d", line_no,
+           (double)pos.y, (double)s.vy, (double)hypotf(s.vx, s.vz), (double)pos.x, (double)pos.z, (int)s.hand,
+           (int)s.zr, (int)(gd_ready() && gd_game_paused(0, 0)));
+  out_line(text);
+}
+
+#define ACTORS_MAX 24
+
+static void run_actors(const char *args)
+{
+  int32_t radius = 6;
+  if (*args && (!parse_int(args, &radius) || radius < 1)) {
+    result(false, "actors: a distance in metres");
+    return;
+  }
+  static actor_near_t near[ACTORS_MAX];
+  int n = actors_near((float)radius, near, ACTORS_MAX);
+  char text[160];
+  for (int i = 0; i < n; i++) {
+    snprintf(text, sizeof(text), "%d | %.2f %.80s", line_no, (double)near[i].distance, near[i].name);
+    out_line(text);
+  }
+  result(true, "%d actors within %d m", n, (int)radius);
+}
+
 static void run_status(bool held)
 {
+  link_state_t s;
+  link_state(&s);
   vec3f_t pos = { 0, 0, 0 };
   bool has_pos = link_drawn_pos(&pos);
   const char *map = gd_ready() ? gd_get_str(GD_STR_MAP) : 0;
   const char *warp = warp_state();
-  result(true, "frame=%u map=%s link=%s x=%.3f y=%.3f z=%.3f held=%d menu=%d game_paused=%d warp=%s",
+  result(true, "frame=%u map=%s link=%s x=%.3f y=%.3f z=%.3f held=%d menu=%d game_paused=%d vy=%.3f hs=%.3f "
+               "facing=%.1f hand=%d zr=%d warp=%s",
          (unsigned)frame_counter(), map && map[0] ? map : "?", has_pos ? "yes" : "no", (double)pos.x, (double)pos.y,
-         (double)pos.z, (int)held, menu_current != 0, (int)(gd_ready() && gd_game_paused(0, 0)),
-         warp && warp[0] ? warp : "-");
+         (double)pos.z, (int)held, menu_current != 0, (int)(gd_ready() && gd_game_paused(0, 0)), (double)s.vy,
+         (double)hypotf(s.vx, s.vz), (double)s.facing, (int)s.hand, (int)s.zr, warp && warp[0] ? warp : "-");
 }
 
 /* Run one line. What it waits for, if anything, is left in the state above. */
@@ -555,6 +637,17 @@ static void run_line(char *line, bool held)
     result(true, "%s", args);
   } else if (same(verb, "status")) {
     run_status(held);
+  } else if (same(verb, "actors")) {
+    run_actors(args);
+  } else if (same(verb, "trace")) {
+    if (same(args, "off"))
+      number = 0;
+    else if (!parse_int(args, &number) || number < 1) {
+      result(false, "trace: a number of frames, or off");
+      return;
+    }
+    trace_left = number;
+    result(true, "trace %d", (int)number);
   } else if (same(verb, "wait")) {
     if (!parse_int(args, &number) || number < 0)
       result(false, "wait: a number of frames");
@@ -768,9 +861,14 @@ void remote_frame(bool held)
       input_off();
     if (wait_left > 0)
       wait_left--;
+    if (trace_left > 0) { /* this frame's, before any line of it runs */
+      trace_line();
+      trace_left--;
+    }
   }
   if (!running)
     poll();
+  size_t traced = out_len; /* more than the trace's lines after this: the sender is waiting to read it */
   for (int lines = 0; running && lines < LINES_PER_CALL && !waiting(held); lines++) {
     char *line = next_line();
     if (!line) {
@@ -780,7 +878,9 @@ void remote_frame(bool held)
     }
     run_line(line, held);
   }
-  out_flush();
+  /* a trace alone is written a buffer at a time, not a file write a frame; its last frames at once */
+  if (out_len != traced || trace_left <= 0 || out_len > OUT_MAX - 512)
+    out_flush();
 }
 
 bool remote_take_pause(void)

@@ -18,7 +18,7 @@ def main():
     exe = out / ("remote" + (".exe" if os.name == "nt" else ""))
     for command in (
         [args.cc, "-std=gnu11", "-O2", "-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter",
-         "-Isrc/ootgz", "tests/remote.c", "-o", str(exe)],
+         "-Isrc/ootgz", "tests/remote.c", "-lm", "-o", str(exe)],
         [str(exe)],
     ):
         result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)

@@ -198,7 +198,7 @@ static void use_actor(uintptr_t actor)
 }
 
 /* in order, as the game does; iterative, with a stack of right children still to visit */
-static void walk_tree(uintptr_t root)
+static void walk_tree(uintptr_t root, void (*use)(uintptr_t actor))
 {
   uintptr_t stack[MAX_DEPTH];
   int depth = 0;
@@ -220,7 +220,7 @@ static void walk_tree(uintptr_t root)
         break;
       uintptr_t actor = *(uintptr_t *)(entry + ENTRY_ACTOR);
       if (actor)
-        use_actor(actor);
+        use(actor);
     }
     node = *(uintptr_t *)(node + NODE_RIGHT);
   }
@@ -272,8 +272,60 @@ int enemies_read(enemy_t *out, int max)
   walk.link = link_actor();
   if (!link_drawn_pos(&walk.link_pos))
     return 0;
-  walk_tree(*(uintptr_t *)(mgr + MGR_TREE_ROOT));
+  walk_tree(*(uintptr_t *)(mgr + MGR_TREE_ROOT), use_actor);
   report(out, walk.n);
   return walk.n;
+}
+
+/* --- the actors near Link (remote.h's "actors") ---------------------------------------------------- */
+
+static struct {
+  actor_near_t *out;
+  int n, max;
+  float radius;
+} near;
+
+static void use_near(uintptr_t actor)
+{
+  if (!readable(actor, ACTOR_POS + 12) || actor == walk.link)
+    return;
+  uint32_t state = *(uint32_t *)(actor + ACTOR_STATE);
+  uintptr_t name = *(uintptr_t *)(actor + ACTOR_NAME);
+  if (state < STATE_RUNNING || state > STATE_RUNNING_LAST || !name || !sys_mapped(name, 8, SYS_PERM_R))
+    return;
+  float distance = distance_to_link(actor);
+  if (!(distance <= near.radius))
+    return;
+  int at = near.n;
+  if (near.n < near.max)
+    near.n++;
+  else if (near.out[near.max - 1].distance <= distance) /* full, and no nearer than the furthest kept */
+    return;
+  else
+    at = near.max - 1;
+  for (; at > 0 && near.out[at - 1].distance > distance; at--) /* kept nearest first */
+    near.out[at] = near.out[at - 1];
+  near.out[at] = (actor_near_t){ (const char *)name, distance };
+}
+
+int actors_near(float radius, actor_near_t *out, int max)
+{
+  if (!z64hd_game || !z64hd_game->actor_mgr_ptr || max < 1)
+    return 0;
+  uintptr_t mgr = sys_ptr(MAIN(z64hd_game->actor_mgr_ptr));
+  if (!readable(mgr + MGR_TREE_ROOT, 8))
+    return 0;
+  walk.visits = 0;
+  walk.link = link_actor();
+  if (!link_drawn_pos(&walk.link_pos))
+    return 0;
+  for (int i = 0; i < max; i++)
+    out[i] = (actor_near_t){ 0, 0 };
+  near.out = out;
+  near.n = 0;
+  near.max = max;
+  near.radius = radius;
+  walk_tree(*(uintptr_t *)(mgr + MGR_TREE_ROOT), use_near);
+  return near.n;
 }
 

@@ -20,7 +20,10 @@
  *                              buttons and sticks for the game, on top of the controller: "A+ZL", "0x41" or
  *                              "-" for none; sticks -32767..32767; for 1 frame unless said (for 0: until the
  *                              next input line). "input off" ends it.
- *   status                     the frame, the map, where Link is, whether the game is held
+ *   status                     the frame, the map, where Link is and how he moves (vy, hs: his speed up and
+ *                              across), what he holds and has on ZR, whether the game is held
+ *   trace <frames> | off       a line for each of the next frames: "<line> t y= vy= hs= x= z= hand= zr= paused="
+ *   actors [metres]            the running actors within that distance of Link (6 unless said), nearest first
  *   echo <text>                the text, into out.txt
  * A menu path is the names from the top menu down, "/" between them, any case ("cheats/infinite magic",
  * "scene/end cutscene"); "name#2" is the second item of that name, "@7" the menu's item number 7 (list shows
