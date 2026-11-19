@@ -538,17 +538,36 @@ float hypotf(float x, float y); /* from sdk */
 #define PLAYER_JS_HEIGHT 0x18E8 /* watches.c: js_height_address gives the player object + this */
 #define PLAYER_ZR_ITEM 0x7D0
 #define PLAYER_HELD_KIND 0x7D8
+/* and what he's doing (1.1.1, from the game's code): whether ZL has a target (the player object's lock state: 2
+ * with one, 3 with none), whether he's on the ground, and the ids of his main and weapon actions (the game's
+ * action table: 40 Wait, 1 Walk, 65 LockOnWait, 66 LockOnMove, 114 JumpAttack, 33 Fall, 32 Land; weapon 57
+ * Drawn, 58 Sheathed, 56 PutAway); -1 where they can't be read */
+#define PLAYER_LOCK_STATE 0x1C74
+#define PLAYER_ON_GROUND 0x13D0 /* bit 0 */
+#define PLAYER_ACTION_PATH_1 0x18
+#define PLAYER_ACTION_PATH_2 0x270
+#define PLAYER_ACTION_PATH_3 0x188
+#define ACTION_MAIN_SLOT 0x1C0
+#define ACTION_WEAPON_SLOT 0x1C8
+#define ACTION_SLOT_ID 0x4C
 
 typedef struct {
   float vx, vy, vz, facing;
-  int32_t hand, zr;
+  int32_t hand, zr, lock, ground, action, weapon;
 } link_state_t;
+
+static int32_t action_id(uintptr_t actions, uintptr_t slot_offset)
+{
+  uintptr_t slot = actions ? sys_ptr(actions + slot_offset) : 0;
+  uint32_t id;
+  return slot && sys_read32(slot + ACTION_SLOT_ID, &id) ? (int32_t)id : -1;
+}
 
 float atan2f(float y, float x); /* from sdk */
 
 static bool link_state(link_state_t *s)
 {
-  *s = (link_state_t){ 0, 0, 0, 0, -2, -2 };
+  *s = (link_state_t){ 0, 0, 0, 0, -2, -2, -1, -1, -1, -1 };
   uintptr_t link = link_actor();
   if (!link || !sys_mapped(link + LINK_VELOCITY, 12, SYS_PERM_R))
     return false;
@@ -567,6 +586,16 @@ static bool link_state(link_state_t *s)
     uintptr_t player = js - PLAYER_JS_HEIGHT;
     s->zr = *(volatile int32_t *)(player + PLAYER_ZR_ITEM);
     s->hand = *(volatile int32_t *)(player + PLAYER_HELD_KIND);
+    uint32_t word;
+    if (sys_read32(player + PLAYER_LOCK_STATE, &word))
+      s->lock = (int32_t)word;
+    if (sys_read32(player + PLAYER_ON_GROUND, &word))
+      s->ground = (int32_t)(word & 1);
+    uintptr_t p = sys_ptr(player + PLAYER_ACTION_PATH_1);
+    p = p ? sys_ptr(p + PLAYER_ACTION_PATH_2) : 0;
+    p = p ? sys_ptr(p + PLAYER_ACTION_PATH_3) : 0;
+    s->action = action_id(p, ACTION_MAIN_SLOT);
+    s->weapon = action_id(p, ACTION_WEAPON_SLOT);
   }
   return true;
 }
@@ -578,10 +607,12 @@ static void trace_line(void)
   link_state_t s;
   link_drawn_pos(&pos);
   link_state(&s);
-  char text[200];
-  snprintf(text, sizeof(text), "%d t y=%.3f vy=%.3f hs=%.3f x=%.3f z=%.3f hand=%d zr=%d paused=%d", line_no,
-           (double)pos.y, (double)s.vy, (double)hypotf(s.vx, s.vz), (double)pos.x, (double)pos.z, (int)s.hand,
-           (int)s.zr, (int)(gd_ready() && gd_game_paused(0, 0)));
+  char text[240];
+  snprintf(text, sizeof(text), "%d t y=%.3f vy=%.3f hs=%.3f x=%.3f z=%.3f hand=%d zr=%d paused=%d lock=%d "
+                               "ground=%d act=%d wpn=%d",
+           line_no, (double)pos.y, (double)s.vy, (double)hypotf(s.vx, s.vz), (double)pos.x, (double)pos.z,
+           (int)s.hand, (int)s.zr, (int)(gd_ready() && gd_game_paused(0, 0)), (int)s.lock, (int)s.ground,
+           (int)s.action, (int)s.weapon);
   out_line(text);
 }
 
@@ -613,10 +644,11 @@ static void run_status(bool held)
   const char *map = gd_ready() ? gd_get_str(GD_STR_MAP) : 0;
   const char *warp = warp_state();
   result(true, "frame=%u map=%s link=%s x=%.3f y=%.3f z=%.3f held=%d menu=%d game_paused=%d vy=%.3f hs=%.3f "
-               "facing=%.1f hand=%d zr=%d warp=%s",
+               "facing=%.1f hand=%d zr=%d lock=%d ground=%d act=%d wpn=%d warp=%s",
          (unsigned)frame_counter(), map && map[0] ? map : "?", has_pos ? "yes" : "no", (double)pos.x, (double)pos.y,
          (double)pos.z, (int)held, menu_current != 0, (int)(gd_ready() && gd_game_paused(0, 0)), (double)s.vy,
-         (double)hypotf(s.vx, s.vz), (double)s.facing, (int)s.hand, (int)s.zr, warp && warp[0] ? warp : "-");
+         (double)hypotf(s.vx, s.vz), (double)s.facing, (int)s.hand, (int)s.zr, (int)s.lock, (int)s.ground,
+         (int)s.action, (int)s.weapon, warp && warp[0] ? warp : "-");
 }
 
 /* Run one line. What it waits for, if anything, is left in the state above. */

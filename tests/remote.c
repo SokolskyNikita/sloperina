@@ -28,9 +28,16 @@ bool gd_game_paused(bool *is_pause, int32_t *pause_requests) { return false; }
 const char *warp_state(void) { return ""; }
 /* Link's actor and the player object, as status and trace read them: his velocity at +0x388, the item on ZR and
  * in hand at the player object's +0x7D0 and +0x7D8 (the jump height's address is that object + 0x18E8) */
-static _Alignas(8) uint8_t actor_mem[0x400], player_mem[0x1900];
+static _Alignas(8) uint8_t actor_mem[0x400], player_mem[0x1D00];
 static float facing_x = 1, facing_z = 0;
 uintptr_t link_actor(void) { return (uintptr_t)actor_mem; }
+/* the player object's lock state and on-ground flag are read as words; its action state isn't there (-1) */
+uintptr_t sys_ptr(uintptr_t addr) { return 0; }
+bool sys_read32(uintptr_t addr, uint32_t *out)
+{
+  memcpy(out, (const void *)addr, 4);
+  return true;
+}
 bool sys_mapped(uintptr_t addr, size_t size, uint32_t perm) { return true; }
 bool link_facing(double *fx, double *fz)
 {
@@ -333,8 +340,11 @@ int main(void)
   memcpy(actor_mem + 0x388, velocity, sizeof(velocity));
   memcpy(player_mem + 0x7D0, &zr_item, 4);
   memcpy(player_mem + 0x7D8, &held, 4);
+  uint32_t lock_state = 2, on_ground = 0x101;
+  memcpy(player_mem + 0x1C74, &lock_state, 4);
+  memcpy(player_mem + 0x13D0, &on_ground, 4);
   run_script("status\n");
-  out_has(" vy=6.125 hs=5.000 facing=90.0 hand=-1 zr=0 warp=-\n");
+  out_has(" vy=6.125 hs=5.000 facing=90.0 hand=-1 zr=0 lock=2 ground=1 act=-1 wpn=-1 warp=-\n");
   out_size = 0;
   send("trace 3\necho now\nwait 5\necho later\n");
   for (int i = 0; i < POLL_CALLS; i++)
@@ -348,7 +358,7 @@ int main(void)
     frame();
   out_has(" 4 ok later\n");
   int traced = 0;
-  for (const char *p = out_file; (p = strstr(p, " t y=2.000 vy=6.125 hs=5.000 x=1.500 z=-3.000 hand=3 zr=0 paused=0\n")); p++)
+  for (const char *p = out_file; (p = strstr(p, " t y=2.000 vy=6.125 hs=5.000 x=1.500 z=-3.000 hand=3 zr=0 paused=0 lock=2 ground=1 act=-1 wpn=-1\n")); p++)
     traced++;
   assert(traced == 3);
   run_script("trace 100\ntrace off\nwait 2\ntrace x\n");

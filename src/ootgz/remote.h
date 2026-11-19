@@ -21,8 +21,11 @@
  *                              "-" for none; sticks -32767..32767; for 1 frame unless said (for 0: until the
  *                              next input line). "input off" ends it.
  *   status                     the frame, the map, where Link is and how he moves (vy, hs: his speed up and
- *                              across), what he holds and has on ZR, whether the game is held
- *   trace <frames> | off       a line for each of the next frames: "<line> t y= vy= hs= x= z= hand= zr= paused="
+ *                              across), what he holds and has on ZR, whether ZL has a target (lock: 2 yes,
+ *                              3 no), whether he's on the ground, his main and weapon action ids, whether
+ *                              the game is held
+ *   trace <frames> | off       a line for each of the next frames: "<line> t y= vy= hs= x= z= hand= zr= paused=
+ *                              lock= ground= act= wpn="
  *   actors [metres]            the running actors within that distance of Link (6 unless said), nearest first
  *   echo <text>                the text, into out.txt
  * A menu path is the names from the top menu down, "/" between them, any case ("cheats/infinite magic",
