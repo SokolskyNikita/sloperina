@@ -11,7 +11,9 @@
 #include "input.h"
 #include "link.h"
 #include "menu.h"
+#include "levitate.h"
 #include "menus.h"
+#include "position.h"
 #include "sdfs.h"
 #include "settings.h"
 #include "sys.h"
@@ -616,6 +618,56 @@ static void trace_line(void)
   out_line(text);
 }
 
+/* "12.5", "-0.25", "110": a number with a decimal point */
+static bool parse_decimal(const char *s, double *out)
+{
+  bool negative = *s == '-';
+  if (negative || *s == '+')
+    s++;
+  double value = 0, scale = 1;
+  int digits = 0;
+  for (; *s >= '0' && *s <= '9'; s++, digits++)
+    value = value * 10 + (*s - '0');
+  if (*s == '.')
+    for (s++; *s >= '0' && *s <= '9'; s++, digits++) {
+      scale /= 10;
+      value += (*s - '0') * scale;
+    }
+  if (*s || !digits)
+    return false;
+  *out = negative ? -value : value;
+  return true;
+}
+
+/* "place <x> <y> <z> [facing]": Link to that spot of this map, as load position does it */
+static void run_place(char *args)
+{
+  double v[4] = { 0, 0, 0, 0 };
+  int n = 0;
+  for (char *word = take_word(&args); *word; word = take_word(&args), n++)
+    if (n >= 4 || !parse_decimal(word, &v[n])) {
+      result(false, "place: x y z, then the way to face in degrees (0 = +z) if not as now");
+      return;
+    }
+  if (n < 3) {
+    result(false, "place: x y z, then the way to face in degrees (0 = +z) if not as now");
+    return;
+  }
+  if (link_record_status() != REC_READY) { /* found on the first save or load position after a map loads */
+    link_record_request();
+    result(false, "place: finding Link's position in memory, try again in a few seconds");
+    return;
+  }
+  if (n < 4) {
+    link_state_t s;
+    link_state(&s);
+    v[3] = s.facing;
+  }
+  position_set(v[0], v[1], v[2], v[3]);
+  position_load();
+  result(true, "place %.3f %.3f %.3f facing %.1f", v[0], v[1], v[2], v[3]);
+}
+
 #define ACTORS_MAX 24
 
 static void run_actors(const char *args)
@@ -669,6 +721,8 @@ static void run_line(char *line, bool held)
     result(true, "%s", args);
   } else if (same(verb, "status")) {
     run_status(held);
+  } else if (same(verb, "place")) {
+    run_place(args);
   } else if (same(verb, "actors")) {
     run_actors(args);
   } else if (same(verb, "trace")) {

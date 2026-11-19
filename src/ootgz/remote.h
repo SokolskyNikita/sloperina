@@ -26,6 +26,8 @@
  *                              the game is held
  *   trace <frames> | off       a line for each of the next frames: "<line> t y= vy= hs= x= z= hand= zr= paused=
  *                              lock= ground= act= wpn="
+ *   place <x> <y> <z> [facing] Link to that spot of this map, facing that way (degrees, 0 = +z), as load position
+ *                              moves him; wait some frames for it to settle
  *   actors [metres]            the running actors within that distance of Link (6 unless said), nearest first
  *   echo <text>                the text, into out.txt
  * A menu path is the names from the top menu down, "/" between them, any case ("cheats/infinite magic",

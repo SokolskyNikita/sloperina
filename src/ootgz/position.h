@@ -8,6 +8,9 @@
 
 void position_save(void);
 void position_load(void);
+/* the saved position given, not taken from where Link is: this map, facing in degrees (0 = +z); a load then
+ * puts him there (remote.h's place) */
+void position_set(double x, double y, double z, double facing_degrees);
 /* frame hook, after levitate_frame: the shortcuts, and a load in progress */
 void position_frame(bool menu_open);
 

@@ -49,6 +49,17 @@ bool js_height_address(uintptr_t *addr)
   *addr = (uintptr_t)player_mem + 0x18E8;
   return true;
 }
+/* load position's side: whether Link's record is known, and where a place put the saved position */
+static link_record_status_t record = REC_READY;
+static int record_requests, position_loads;
+static double placed[4];
+link_record_status_t link_record_status(void) { return record; }
+void link_record_request(void) { record_requests++; }
+void position_load(void) { position_loads++; }
+void position_set(double x, double y, double z, double facing)
+{
+  placed[0] = x, placed[1] = y, placed[2] = z, placed[3] = facing;
+}
 static actor_near_t actors_there[3] = { { "Npc_Kokiri", 2.5f }, { "Obj_Sign", 4.25f }, { "Npc_Far", 30 } };
 int actors_near(float radius, actor_near_t *out, int max)
 {
@@ -370,6 +381,19 @@ int main(void)
   out_has(" 1 ok 2 actors within 6 m\n");
   out_has(" 2 ok 1 actors within 3 m\n");
   out_has(" 3 err actors: a distance in metres\n");
+
+  /* place: the saved position set and loaded; facing as now unless given; refused until Link's record is known */
+  run_script("place -12.45 110.36 4.66 250\nplace 1 2.5 -3\nplace 1 2\nplace 1 2 x\n");
+  out_has(" 1 ok place -12.450 110.360 4.660 facing 250.0\n");
+  out_has(" 2 ok place 1.000 2.500 -3.000 facing 90.0\n");
+  out_has(" 3 err place: x y z");
+  out_has(" 4 err place: x y z");
+  assert(position_loads == 2 && placed[0] == 1 && placed[1] == 2.5 && placed[2] == -3 && placed[3] > 89.9);
+  record = REC_FAILED;
+  run_script("place 1 2 3\n");
+  out_has(" 1 err place: finding Link's position");
+  assert(position_loads == 2 && record_requests == 1);
+  record = REC_READY;
 
   /* a file too long isn't run; one that can't be deleted isn't run, and is said once */
   out_size = 0;

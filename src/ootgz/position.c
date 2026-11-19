@@ -89,6 +89,22 @@ void position_save(void)
   gfx_notice("position saved");
 }
 
+float sinf(float x), cosf(float x); /* from sdk */
+
+void position_set(double x, double y, double z, double facing_degrees)
+{
+  double a = facing_degrees * (3.14159265358979 / 180.0);
+  sx = x;
+  sy = y;
+  sz = z;
+  sfx = sinf((float)a);
+  sfz = cosf((float)a);
+  const char *m = gd_get_str(GD_STR_MAP);
+  snprintf(smap, sizeof(smap), "%s", m ? m : "");
+  saved = true;
+  log_printf("position set: %.3f %.3f %.3f facing %.1f in %s", sx, sy, sz, facing_degrees, smap);
+}
+
 void position_load(void)
 {
   if (!saved) {
