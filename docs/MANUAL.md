@@ -572,7 +572,7 @@ order on the game's thread. What each line did is added to `sloperinaGZ/remote/o
 | `status` | The game's frame counter, the map, where Link is and how he moves (`vy`, `hs`: his speed up and across; `facing` in degrees), what he holds and has on ZR (`hand`, `zr`), whether ZL has a target (`lock`: 2 yes, 3 no), whether he's on the ground, his main and weapon action ids (`act`, `wpn`), whether the game is held and the warp's state. The last six are read for 1.1.1 only. |
 | `trace <frames>` / `trace off` | A line for each of the next frames, without holding the script up: `<line> t y= vy= hs= x= z= hand= zr= paused= lock= ground= act= wpn=`. |
 | `actors [metres]` | The running actors within that distance of Link (6 unless said), nearest first, by the game's names. |
-| `place <x> <y> <z> [facing]` | Puts Link on that spot of this map as **load position** does (wait some frames for it). The first use after a map loads only finds Link's position in memory, as the first save position does: send it again. The facing (degrees, 0 = +z) is turned toward, not always reached. |
+| `place <x> <y> <z> [facing]` | Puts Link on that spot of this map as **load position** does (wait some frames for it). The first use after a map loads only finds Link's position in memory, as the first save position does: send it again. With a facing (degrees, 0 = +z) he is turned to it; without, he faces as he did. |
 | `echo <text>` | Puts the text in `out.txt` (a marker). |
 | `id <word>` | The word that starts this script's lines in `out.txt` (otherwise `-`), to tell them from another's. |
 
