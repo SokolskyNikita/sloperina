@@ -564,11 +564,15 @@ order on the game's thread. What each line did is added to `sloperinaGZ/remote/o
 | `get <menu path>` | The item's value. |
 | `list [<menu path>]` | A menu's items: number, kind, name and value. Without a path, the top menu. |
 | `wait <frames>` | The next line runs that many frames later. |
+| `repeat <n>` ... `end` | Runs the lines between that many times (up to four inside one another): with `wait` and `input`, a sequence of any length. |
 | `pause` | Holds the game as frame advance does (frame advance needn't be on). |
 | `step [frames]` | Lets that many frames through (one unless said), then holds the game again. Pauses first if the game was running. |
 | `run` | Lets the game run again. |
 | `input <buttons> [ls <x> <y>] [rs <x> <y>] [for <frames>]` | Buttons and sticks for the game, on top of the controller's: names with `+` between (`A+ZL`, at most four), a number (`0x41`) or `-` for none; a stick is -32767 to 32767 each way. For one frame unless said; `for 0` lasts until the next `input`; `input off` ends it. The menu's shortcuts don't see these buttons: use `fire` for those. |
-| `status` | The game's frame counter, the map, where Link is, whether the game is held and the warp's state. |
+| `status` | The game's frame counter, the map, where Link is and how he moves (`vy`, `hs`: his speed up and across; `facing` in degrees), what he holds and has on ZR (`hand`, `zr`), whether ZL has a target (`lock`: 2 yes, 3 no), whether he's on the ground, his main and weapon action ids (`act`, `wpn`), whether the game is held and the warp's state. The last six are read for 1.1.1 only. |
+| `trace <frames>` / `trace off` | A line for each of the next frames, without holding the script up: `<line> t y= vy= hs= x= z= hand= zr= paused= lock= ground= act= wpn=`. |
+| `actors [metres]` | The running actors within that distance of Link (6 unless said), nearest first, by the game's names. |
+| `place <x> <y> <z> [facing]` | Puts Link on that spot of this map as **load position** does (wait some frames for it). The first use after a map loads only finds Link's position in memory, as the first save position does: send it again. The facing (degrees, 0 = +z) is turned toward, not always reached. |
 | `echo <text>` | Puts the text in `out.txt` (a marker). |
 | `id <word>` | The word that starts this script's lines in `out.txt` (otherwise `-`), to tell them from another's. |
 
