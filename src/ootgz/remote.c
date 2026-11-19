@@ -24,7 +24,9 @@
 #define CMD_FILE REMOTE_DIR "/cmd.txt"
 #define OUT_FILE REMOTE_DIR "/out.txt"
 
-#define SCRIPT_MAX 16384  /* a script's text */
+#define SCRIPT_MAX 65536  /* a script's text */
+#define LINE_MAX_LEN 512  /* one line of it */
+#define REPEAT_DEPTH 4    /* repeats inside repeats */
 #define OUT_MAX 8192      /* results waiting to be written */
 #define POLL_CALLS 6      /* look for cmd.txt every this many calls (10 times a second) */
 #define LINES_PER_CALL 64 /* at most this many lines a frame: a long script doesn't hold the game up */
@@ -37,6 +39,13 @@ static size_t script_len, cursor;
 static int line_no;
 static bool running;
 static char script_id[24] = "-";
+
+/* the repeats the script is inside: where each one's lines start, and the rounds it still has */
+static struct {
+  size_t cursor;
+  int line_no, left;
+} repeats[REPEAT_DEPTH];
+static int repeat_depth;
 
 /* what the line being run waits for */
 static int wait_left;               /* wait: frames still to go */
@@ -717,6 +726,25 @@ static void run_line(char *line, bool held)
 
   if (same(verb, "id")) {
     snprintf(script_id, sizeof(script_id), "%s", *args ? take_word(&args) : "-");
+  } else if (same(verb, "repeat")) {
+    if (!parse_int(args, &number) || number < 1)
+      result(false, "repeat: how many times");
+    else if (repeat_depth >= REPEAT_DEPTH)
+      result(false, "repeat: more than %d inside one another", REPEAT_DEPTH);
+    else {
+      repeats[repeat_depth].cursor = cursor;
+      repeats[repeat_depth].line_no = line_no;
+      repeats[repeat_depth++].left = number;
+    }
+  } else if (same(verb, "end")) {
+    if (!repeat_depth)
+      result(false, "end: no repeat to end");
+    else if (--repeats[repeat_depth - 1].left > 0) {
+      cursor = repeats[repeat_depth - 1].cursor;
+      line_no = repeats[repeat_depth - 1].line_no;
+    } else {
+      repeat_depth--;
+    }
   } else if (same(verb, "echo")) {
     result(true, "%s", args);
   } else if (same(verb, "status")) {
@@ -852,15 +880,16 @@ static void run_line(char *line, bool held)
 /* The script's next line with something on it (ended in place), or 0 at its end. */
 static char *next_line(void)
 {
+  static char line_buf[LINE_MAX_LEN]; /* a copy: the script's text stays as it is, for a repeat to run again */
   while (cursor < script_len) {
-    char *line = script + cursor;
-    size_t end = cursor;
-    while (end < script_len && script[end] != '\n')
-      end++;
-    script[end] = 0;
+    size_t end = cursor, len = 0;
+    for (; end < script_len && script[end] != '\n'; end++)
+      if (len < sizeof(line_buf) - 1)
+        line_buf[len++] = script[end];
+    line_buf[len] = 0;
     cursor = end < script_len ? end + 1 : end;
     line_no++;
-    line = skip_spaces(line);
+    char *line = skip_spaces(line_buf);
     trim_end(line);
     if (*line && *line != '#')
       return line;
@@ -904,6 +933,7 @@ static void poll(void)
   script_len = got;
   script[got] = 0;
   cursor = 0;
+  repeat_depth = 0;
   running = true;
 }
 

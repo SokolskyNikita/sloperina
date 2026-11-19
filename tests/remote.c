@@ -395,6 +395,29 @@ int main(void)
   assert(position_loads == 2 && record_requests == 1);
   record = REC_READY;
 
+  /* repeat ... end: the lines between again and again, inside one another, with waits; a line can be run twice */
+  run_script("repeat 3\necho a  b\nrepeat 2\necho c\nend\nend\necho d\nend\nrepeat x\n");
+  int as = 0, cs = 0;
+  for (const char *p = out_file; (p = strstr(p, " 2 ok a  b\n")); p++)
+    as++;
+  for (const char *p = out_file; (p = strstr(p, " 4 ok c\n")); p++)
+    cs++;
+  assert(as == 3 && cs == 6);
+  out_has(" 7 ok d\n");
+  out_has(" 8 err end: no repeat to end\n");
+  out_has(" 9 err repeat: how many times\n");
+  out_size = 0;
+  send("repeat 3\ninput A for 1\nwait 2\nend\necho done\n");
+  for (int i = 0; i < POLL_CALLS; i++)
+    frame();
+  int on = 0;
+  for (int i = 0; i < 8 && running; i++) {
+    on += input_remote_active;
+    frame();
+  }
+  assert(on == 3 && !running); /* A on one frame of every two, three times */
+  out_has(" 5 ok done\n");
+
   /* a file too long isn't run; one that can't be deleted isn't run, and is said once */
   out_size = 0;
   memset(cmd_file, 'x', SCRIPT_MAX);
@@ -403,7 +426,7 @@ int main(void)
   for (int i = 0; i < 2 * POLL_CALLS; i++)
     frame();
   assert(!cmd_there && !running);
-  out_has(" - 0 err cmd.txt is over 16383 bytes: not run\n");
+  out_has(" - 0 err cmd.txt is over 65535 bytes: not run\n");
   out_size = 0;
   cmd_locked = true;
   send("echo twice\n");

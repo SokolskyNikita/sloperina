@@ -584,7 +584,7 @@ on the PC: `fire loadpos`, `wait 60`, `pause`, `input A for 1`, `step 30`, `stat
 can't pass (no frames do: use `step`), and a `fire` takes effect on the first frame let through. A script that ends
 with the game held leaves it held for the next one; `run`, or turning **remote control** off, lets it go on.
 
-At most 16,383 bytes a script, and 64 of its lines a frame. Blank lines and lines that start with `#` are skipped.
+At most 65,535 bytes a script, and 64 of its lines a frame. `repeat <n>` ... `end` runs the lines between that many times. Blank lines and lines that start with `#` are skipped.
 
 ### 2.12 About
 

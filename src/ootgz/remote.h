@@ -13,6 +13,8 @@
  *   get <menu path>            its value and its line as the menu shows it
  *   list [<menu path>]         a menu's items: number, kind, name, value
  *   wait <frames>              the next line runs that many frames later
+ *   repeat <n> ... end         the lines between, that many times (up to four inside one another); with wait
+ *                              and input, a sequence of any length
  *   pause                      hold the game, as frame advance does (it needn't be on)
  *   step [frames]              let that many frames through (pausing first), then hold again
  *   run                        let the game run again
